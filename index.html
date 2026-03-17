@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -9,6 +10,7 @@
 <meta name="theme-color" content="#007bff">
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -44,6 +46,8 @@ window.addRecord = async function(){
 
   await addDoc(collection(db, "records"), record);
 
+  alert("新增成功");
+
   customer.value="";
   phone.value="";
   location.value="";
@@ -65,21 +69,28 @@ function render(data){
   let list = document.getElementById('list');
   list.innerHTML='';
 
-  let totalIncome=0,totalExpense=0;
+  let totalIncome=0,totalExpense=0,unpaid=0;
 
   data.forEach(r=>{
     totalIncome += r.income;
     totalExpense += r.expense;
 
+    if(r.payment==='未收款') unpaid += r.income;
+
     list.innerHTML += `
     <div class="card">
       <b>${r.customer}</b> (${r.date})<br>
-      📍 ${r.location}<br>
-      💰 收入:${r.income} 成本:${r.expense}
+      📞 ${r.phone || ''}<br>
+      📍 ${r.location || ''}<br>
+      🛠 ${r.device || ''} / ${r.issue || ''}<br>
+      📝 ${r.work || ''}<br>
+      💰 收入:${r.income} 成本:${r.expense} 利潤:${r.income - r.expense}<br>
+      💳 ${r.payment || ''}
     </div>`;
   });
 
-  summary.innerText = `收入:${totalIncome} 淨利:${totalIncome-totalExpense}`;
+  summary.innerText = `收入:${totalIncome} 成本:${totalExpense} 淨利:${totalIncome-totalExpense} 未收:${unpaid}`;
+
   drawChart(data);
 }
 
@@ -110,6 +121,14 @@ function drawChart(data){
       }]
     }
   });
+}
+
+// 📊 匯出 Excel
+window.exportExcel = function(){
+  const ws = XLSX.utils.json_to_sheet(allData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "記帳資料");
+  XLSX.writeFile(wb, "記帳資料.xlsx");
 }
 
 window.onload = loadData;
@@ -177,6 +196,8 @@ button{
 <select id="issue">
 <option>不冷</option>
 <option>漏水</option>
+<option>不啟動</option>
+<option>聲音異常</option>
 </select>
 
 <textarea id="work" placeholder="處理內容"></textarea>
@@ -190,6 +211,7 @@ button{
 </select>
 
 <button onclick="addRecord()">新增</button>
+<button onclick="exportExcel()">📊 匯出Excel</button>
 
 <canvas id="chart"></canvas>
 
