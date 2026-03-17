@@ -1,172 +1,182 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>怡泰冷凍空調設備行記帳本</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>怡泰冷凍空調設備行記帳本</title>
 
-  <!-- App Icon / PWA -->
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#007bff">
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyCrVNT8KyICYTmeOj_jH4DHz8UO8w4w4Mw",
-      authDomain: "yi-tai-hvac-euipment-co.firebaseapp.com",
-      projectId: "yi-tai-hvac-euipment-co",
-      storageBucket: "yi-tai-hvac-euipment-co.firebasestorage.app",
-      messagingSenderId: "879447213879",
-      appId: "1:879447213879:web:fd0afdb50292fc545b7cb2"
-    };
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+const firebaseConfig = {
+  apiKey: "AIzaSyCrVNT8KyICYTmeOj_jH4DHz8UO8w4w4Mw",
+  authDomain: "yi-tai-hvac-euipment-co.firebaseapp.com",
+  projectId: "yi-tai-hvac-euipment-co",
+  storageBucket: "yi-tai-hvac-euipment-co.firebasestorage.app",
+  messagingSenderId: "879447213879",
+  appId: "1:879447213879:web:fd0afdb50292fc545b7cb2"
+};
 
-    window.addRecord = async function() {
-      const record = {
-        date: new Date().toLocaleString(),
-        customer: customer.value,
-        phone: phone.value,
-        location: location.value,
-        device: device.value,
-        issue: issue.value,
-        work: work.value,
-        income: Number(income.value||0),
-        expense: Number(expense.value||0),
-        payment: payment.value
-      };
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-      await addDoc(collection(db, "records"), record);
-      loadData();
+let allData = [];
+
+window.addRecord = async function(){
+  const record = {
+    date: new Date().toISOString().split('T')[0],
+    customer: customer.value,
+    phone: phone.value,
+    location: location.value,
+    device: device.value,
+    issue: issue.value,
+    work: work.value,
+    income: Number(income.value||0),
+    expense: Number(expense.value||0),
+    payment: payment.value
+  };
+
+  await addDoc(collection(db, "records"), record);
+
+  customer.value="";
+  phone.value="";
+  location.value="";
+  work.value="";
+  income.value="";
+  expense.value="";
+
+  loadData();
+}
+
+async function loadData(){
+  const querySnapshot = await getDocs(collection(db, "records"));
+  allData = [];
+  querySnapshot.forEach(doc=> allData.push(doc.data()));
+  render(allData);
+}
+
+function render(data){
+  let list = document.getElementById('list');
+  list.innerHTML='';
+
+  let totalIncome=0,totalExpense=0;
+
+  data.forEach(r=>{
+    totalIncome += r.income;
+    totalExpense += r.expense;
+
+    list.innerHTML += `
+    <div class="card">
+      <b>${r.customer}</b> (${r.date})<br>
+      📍 ${r.location}<br>
+      💰 收入:${r.income} 成本:${r.expense}
+    </div>`;
+  });
+
+  summary.innerText = `收入:${totalIncome} 淨利:${totalIncome-totalExpense}`;
+  drawChart(data);
+}
+
+// 🔍 搜尋
+window.searchData = function(){
+  let key = search.value.toLowerCase();
+  render(allData.filter(r => r.customer.toLowerCase().includes(key)));
+}
+
+// 📅 日期篩選
+window.filterDate = function(){
+  let d = dateFilter.value;
+  render(allData.filter(r => r.date === d));
+}
+
+// 📊 圖表
+function drawChart(data){
+  const ctx = document.getElementById('chart');
+  if(window.myChart) window.myChart.destroy();
+
+  window.myChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d=>d.date),
+      datasets: [{
+        label:'收入',
+        data: data.map(d=>d.income)
+      }]
     }
+  });
+}
 
-    async function loadData(){
-      const querySnapshot = await getDocs(collection(db, "records"));
-      let list = document.getElementById('list');
-      list.innerHTML='';
+window.onload = loadData;
+</script>
 
-      let totalIncome=0,totalExpense=0,unpaid=0;
+<style>
+body { font-family: Arial; margin:0; background:#f0f4ff; }
+h2 { background:#007bff;color:white;padding:15px;text-align:center; }
 
-      querySnapshot.forEach(doc=>{
-        const r = doc.data();
-        totalIncome += r.income;
-        totalExpense += r.expense;
-        if(r.payment==='未收款') unpaid += r.income;
+input,select,textarea{
+  width:100%;padding:10px;margin:5px 0;border-radius:8px;border:1px solid #ccc;
+}
 
-        list.innerHTML += `
-        <div class="card">
-          <b>${r.customer}</b> (${r.date})<br>
-          📍 ${r.location}<br>
-          🛠 ${r.device} / ${r.issue}<br>
-          💰 收入:${r.income} 成本:${r.expense} 利潤:${r.income - r.expense}<br>
-          💳 ${r.payment}
-        </div>`;
-      });
+button{
+  width:100%;padding:12px;margin:5px 0;border:none;border-radius:8px;
+  background:#007bff;color:white;
+}
 
-      summary.innerText = `收入:${totalIncome} 成本:${totalExpense} 淨利:${totalIncome-totalExpense} 未收:${unpaid}`;
-    }
+.card{
+  background:white;padding:10px;margin:10px;border-radius:10px;
+}
 
-    // ===== Excel 匯出功能 =====
-    window.exportExcel = async function(){
-      const querySnapshot = await getDocs(collection(db, "records"));
+#summary{
+  background:white;padding:10px;margin:10px;border-radius:10px;text-align:center;
+}
 
-      let csv = "日期,客戶,電話,地址,設備,問題,收入,成本,付款\n";
+#loginBox{
+  padding:30px;
+  text-align:center;
+}
 
-      querySnapshot.forEach(doc=>{
-        const r = doc.data();
-        csv += `${r.date},${r.customer},${r.phone},${r.location},${r.device},${r.issue},${r.income},${r.expense},${r.payment}\n`;
-      });
-
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "記帳報表.csv";
-      link.click();
-    }
-
-    window.onload = loadData;
-  </script>
-
-  <!-- 藍色主題 UI -->
-  <style>
-    body { 
-      font-family: Arial; 
-      margin: 0; 
-      background:#f0f4ff;
-    }
-
-    h2 {
-      background:#007bff;
-      color:white;
-      padding:15px;
-      margin:0;
-      text-align:center;
-    }
-
-    input, textarea, select {
-      width: 100%; 
-      padding: 10px; 
-      margin: 5px 0;
-      border-radius: 8px;
-      border:1px solid #ccc;
-    }
-
-    button {
-      width:100%;
-      padding:12px;
-      margin:5px 0;
-      border:none;
-      border-radius:8px;
-      background:#007bff;
-      color:white;
-      font-size:16px;
-    }
-
-    button:hover {
-      background:#0056b3;
-    }
-
-    .card { 
-      background:white; 
-      padding:10px; 
-      margin:10px; 
-      border-radius:10px;
-      box-shadow:0 2px 6px rgba(0,0,0,0.1);
-    }
-
-    #summary {
-      background:#ffffff;
-      padding:10px;
-      margin:10px;
-      border-radius:10px;
-      font-weight:bold;
-      text-align:center;
-    }
-  </style>
+#loginBox input{
+  width:80%;
+}
+</style>
 </head>
+
 <body>
 
-<h2>怡泰冷凍空調設備行記帳本</h2>
+<!-- 🔐 登入 -->
+<div id="loginBox">
+  <h2>系統登入</h2>
+  <input id="user" placeholder="帳號"><br>
+  <input id="pass" type="password" placeholder="密碼"><br>
+  <button onclick="login()">登入</button>
+</div>
+
+<!-- 🔒 主系統 -->
+<div id="app" style="display:none;">
+
+<h2>怡泰冷凍空調設備行</h2>
+
+<input id="search" placeholder="搜尋客戶" oninput="searchData()">
+<input type="date" id="dateFilter" onchange="filterDate()">
 
 <input id="customer" placeholder="客戶名稱">
 <input id="phone" placeholder="電話">
 <input id="location" placeholder="地址">
 
 <select id="device">
-  <option>家用冷氣</option>
-  <option>商用冷凍</option>
-  <option>冷藏 / 冷凍櫃</option>
-  <option>冷凍庫</option>
+<option>家用冷氣</option>
+<option>商用冷凍</option>
 </select>
 
 <select id="issue">
-  <option>不冷</option>
-  <option>漏水</option>
-  <option>不啟動</option>
-  <option>壓縮機問題</option>
+<option>不冷</option>
+<option>漏水</option>
 </select>
 
 <textarea id="work" placeholder="處理內容"></textarea>
@@ -175,16 +185,32 @@
 <input id="expense" type="number" placeholder="成本">
 
 <select id="payment">
-  <option>現金</option>
-  <option>匯款</option>
-  <option>未收款</option>
+<option>現金</option>
+<option>未收款</option>
 </select>
 
-<button onclick="addRecord()">新增（自動同步）</button>
-<button onclick="exportExcel()">📊 匯出Excel</button>
+<button onclick="addRecord()">新增</button>
+
+<canvas id="chart"></canvas>
 
 <div id="list"></div>
 <h3 id="summary"></h3>
+
+</div>
+
+<script>
+function login(){
+  const u = document.getElementById("user").value;
+  const p = document.getElementById("pass").value;
+
+  if(u==="5888" && p==="5188"){
+    document.getElementById("loginBox").style.display="none";
+    document.getElementById("app").style.display="block";
+  }else{
+    alert("帳密錯誤");
+  }
+}
+</script>
 
 </body>
 </html>
